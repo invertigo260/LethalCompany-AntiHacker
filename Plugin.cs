@@ -16,7 +16,7 @@ namespace AntiHacker
         private Harmony harmony;
 
         public ConfigEntry<bool> PersistKickList;
-        public ConfigEntry<bool> AppearInVanilla;
+        public ConfigEntry<bool> ForceVanillaLobby;
 
         private void Awake()
         {
@@ -24,7 +24,7 @@ namespace AntiHacker
             Log = base.Logger;
 
             PersistKickList = Config.Bind("General", "PersistKickList", true, "If true, the kick list will persist across game sessions. If false, it will reset every time you close the game.");
-            AppearInVanilla = Config.Bind("General", "AppearInVanilla", true, "If true, your server will appear in the vanilla server list instead of the modded one.");
+            ForceVanillaLobby = Config.Bind("General", "ForceVanillaLobby", true, "If true, explicitly forces your server to appear in the vanilla server list, bypassing the automatic check for other mods.");
 
             harmony = new Harmony(PLUGIN_GUID);
             harmony.PatchAll();
