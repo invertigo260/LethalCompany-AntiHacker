@@ -4,7 +4,7 @@
     <TargetFramework>netstandard2.1</TargetFramework>
     <AssemblyName>AntiHacker</AssemblyName>
     <Description>Prevent hackers from rejoining after being kicked in Lethal Company</Description>
-    <Version>2.0.2</Version>
+    <Version>2.0.3</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>latest</LangVersion>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>

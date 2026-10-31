@@ -84,11 +84,12 @@ namespace AntiHacker.Patches
                     }
                 }
 
-                // Approved: remember who this clientId really is.
-                if (realId != 0)
+                // Approved: remember who this clientId really is (fall back to payloadId if Steam lobby callback hasn't fired yet).
+                ulong idToRecord = realId != 0 ? realId : payloadId;
+                if (idToRecord != 0)
                 {
-                    Security.ClientSteamIds[clientId] = realId;
-                    Security.PendingJoins.Remove(realId);
+                    Security.ClientSteamIds[clientId] = idToRecord;
+                    Security.PendingJoins.Remove(idToRecord);
                 }
             }
             catch (Exception ex)

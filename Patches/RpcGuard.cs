@@ -139,7 +139,27 @@ namespace AntiHacker.Patches
     internal class PlayerItemRpcGuard
     {
         private const float MaxGrabDistance = 15f;
-        private const float MaxThrowOrPlaceDistance = 20f;
+
+        /// <summary>
+        /// Clipboard, Sticky Note, and Dead Player Bodies (RagdollGrabbableObject) have a nominal scrapValue (5)
+        /// in vanilla, but players should still be allowed to pick them up inside the ship.
+        /// </summary>
+        private static bool IsExemptFromShipScrapLock(GrabbableObject grabbable)
+        {
+            if (grabbable == null) return true;
+            if (grabbable is RagdollGrabbableObject || grabbable is ClipboardItem) return true;
+            string name = grabbable.name;
+            if (!string.IsNullOrEmpty(name))
+            {
+                if (name.IndexOf("Clipboard", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    name.IndexOf("StickyNote", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    name.IndexOf("Ragdoll", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
 
         [HarmonyPatch("GrabObjectServerRpc")]
         [HarmonyPrefix]
@@ -158,47 +178,30 @@ namespace AntiHacker.Patches
                 return true;
             }
 
-            // Only check isInShipRoom (not isInElevator, since elevators/catwalks are loaded and unloaded while ferrying loot).
-            bool inShipRoom = grabbable.isInShipRoom;
-
-            if (inShipRoom)
-            {
-                // 1. Remote client must actually be inside the ship room to grab an item that is inside the ship room.
-                if (!__instance.isInHangarShipRoom && !RpcGuard.InsideShipInnerRoom(__instance.transform.position))
-                {
-                    Plugin.Log.LogWarning($"AntiHacker: blocked client {sender} from grabbing ship item '{grabbable.name}' while outside the ship room");
-                    return RpcGuard.RejectGrab(ref grabbedObject);
-                }
-
-                // 2. Skip both the ship-item grab rate limit and the scrap pickup lock when on the Company moon (71 Gordion).
-                if (!RpcGuard.IsCompanyMoon())
-                {
-                    int maxRate = Math.Max(1, Plugin.Instance.MaxShipGrabsPerSecond.Value);
-                    if (RpcGuard.ShipGrabRateLimited(sender, maxRate, out int grabCount))
-                    {
-                        if (grabCount > maxRate + 5)
-                        {
-                            Security.Punish(sender, $"GrabObjectServerRpc ship-item grab spam ({grabCount}/sec on {grabbable.name})");
-                            return false;
-                        }
-                        Plugin.Log.LogWarning($"AntiHacker: rate-limited client {sender} grabbing ship object '{grabbable.name}' ({grabCount}/{maxRate} per sec)");
-                        return RpcGuard.RejectGrab(ref grabbedObject);
-                    }
-
-                    if (Plugin.Instance.LockShipScrapUntilCompany.Value && grabbable.scrapValue > 0)
-                    {
-                        Plugin.Log.LogWarning($"AntiHacker: blocked client {sender} from picking up ship scrap '{grabbable.name}' (value={grabbable.scrapValue}) outside Company moon");
-                        return RpcGuard.RejectGrab(ref grabbedObject);
-                    }
-                }
-            }
-
-            // 4. Distance check so a remote client cannot vacuum items from across the map.
+            // 1. Distance check so a remote client cannot vacuum items from across the map.
             float dist = Vector3.Distance(__instance.transform.position, grabbable.transform.position);
             if (dist > MaxGrabDistance)
             {
                 Plugin.Log.LogWarning($"AntiHacker: blocked client {sender} from grabbing '{grabbable.name}' from {dist:F1}m away");
                 return RpcGuard.RejectGrab(ref grabbedObject);
+            }
+
+            // 2. Only check isInShipRoom (not isInElevator, since elevators/catwalks are loaded and unloaded while ferrying loot).
+            if (grabbable.isInShipRoom && !RpcGuard.IsCompanyMoon())
+            {
+                // Check scrap lock first (without counting blocked attempts toward the rate limiter).
+                if (Plugin.Instance.LockShipScrapUntilCompany.Value && grabbable.scrapValue > 0 && !IsExemptFromShipScrapLock(grabbable))
+                {
+                    return RpcGuard.RejectGrab(ref grabbedObject);
+                }
+
+                // Rate-limit grabbing allowed ship objects (e.g. 0-value tools) without auto-banning players who mash E.
+                int maxRate = Math.Max(1, Plugin.Instance.MaxShipGrabsPerSecond.Value);
+                if (RpcGuard.ShipGrabRateLimited(sender, maxRate, out int grabCount))
+                {
+                    Plugin.Log.LogWarning($"AntiHacker: rate-limited client {sender} grabbing ship object '{grabbable.name}' ({grabCount}/{maxRate} per sec)");
+                    return RpcGuard.RejectGrab(ref grabbedObject);
+                }
             }
 
             return true;
@@ -240,7 +243,8 @@ namespace AntiHacker.Patches
                 return false;
             }
 
-            // 2. Validate targetFloorPosition coordinates and distance from player.
+            // 2. Validate targetFloorPosition is finite (Note: vanilla GetItemFloorPosition raycasts up to 80m down,
+            //    so legitimate held drops over pits/stairs or while the ship/doors move can exceed 20m-80m).
             if (!RpcGuard.IsFinite(targetFloorPosition))
             {
                 Security.Punish(sender, $"ThrowObjectServerRpc with non-finite position {targetFloorPosition}");
@@ -250,13 +254,6 @@ namespace AntiHacker.Patches
             var sor = StartOfRound.Instance;
             Transform parentTransform = droppedInElevator ? sor?.elevatorTransform : sor?.propsContainer;
             Vector3 worldTarget = parentTransform != null ? parentTransform.TransformPoint(targetFloorPosition) : targetFloorPosition;
-
-            float dist = Vector3.Distance(__instance.transform.position, worldTarget);
-            if (dist > MaxThrowOrPlaceDistance)
-            {
-                Security.Punish(sender, $"ThrowObjectServerRpc teleporting '{grabbable.name}' {dist:F1}m away to {worldTarget}");
-                return false;
-            }
 
             // 3. If the item is dropped inside the ship's inner cabin, prevent spoofing droppedInShipRoom=false.
             if ((__instance.isInHangarShipRoom || grabbable.isInShipRoom) && RpcGuard.InsideShipInnerRoom(worldTarget) && (!droppedInShipRoom || !droppedInElevator))
@@ -297,7 +294,12 @@ namespace AntiHacker.Patches
             // 1. Must actually be holding the object on the server.
             if (__instance.currentlyHeldObjectServer != grabbable && grabbable.playerHeldBy != __instance)
             {
-                Security.Punish(sender, $"PlaceObjectServerRpc on unheld item '{grabbable.name}'");
+                if (grabbable.isInShipRoom)
+                {
+                    Security.Punish(sender, $"PlaceObjectServerRpc on unheld ship item '{grabbable.name}'");
+                    return false;
+                }
+                Plugin.Log.LogWarning($"AntiHacker: dropped PlaceObjectServerRpc from client {sender} for unheld item '{grabbable.name}'");
                 return false;
             }
 
@@ -312,27 +314,6 @@ namespace AntiHacker.Patches
             if (parentNetObj.GetComponent<EnemyAINestSpawnObject>() != null || parentNetObj.GetComponentInChildren<EnemyAINestSpawnObject>() != null)
             {
                 Security.Punish(sender, $"PlaceObjectServerRpc parenting '{grabbable.name}' onto EnemyAINestSpawnObject");
-                return false;
-            }
-
-            Transform targetTransform = parentNetObj.transform;
-            PlayerPhysicsRegion physicsRegion = parentNetObj.GetComponentInChildren<PlayerPhysicsRegion>();
-            if (physicsRegion != null && physicsRegion.allowDroppingItems && physicsRegion.physicsTransform != null)
-            {
-                targetTransform = physicsRegion.physicsTransform;
-            }
-
-            Vector3 worldTarget = targetTransform.TransformPoint(placePositionOffset);
-            float dist = Vector3.Distance(__instance.transform.position, worldTarget);
-            if (dist > MaxThrowOrPlaceDistance)
-            {
-                Security.Punish(sender, $"PlaceObjectServerRpc placing '{grabbable.name}' {dist:F1}m away at {worldTarget}");
-                return false;
-            }
-
-            if (grabbable.isInShipRoom && !RpcGuard.InsideShip(worldTarget))
-            {
-                Security.Punish(sender, $"PlaceObjectServerRpc moving ship item '{grabbable.name}' outside ship to {worldTarget}");
                 return false;
             }
 

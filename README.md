@@ -1,4 +1,4 @@
-# AntiHacker v2.0.2
+# AntiHacker v2.0.3
 
 A comprehensive host-side security and Quality-of-Life mod for **Lethal Company**. AntiHacker protects your lobbies from malicious players, prevents ban evasion, blocks game-breaking server RPC exploits (including remote scrap deletion, item vacuuming, and ship tampering), provides instant ship recovery tools, and adds convenient ship management commands.
 

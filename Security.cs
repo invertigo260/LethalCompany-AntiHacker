@@ -101,7 +101,22 @@ namespace AntiHacker
         public static void Punish(ulong clientId, string reason)
         {
             Plugin.Log.LogWarning($"HACK ATTEMPT from clientId {clientId}: {reason}");
-            if (ClientSteamIds.TryGetValue(clientId, out ulong steamId))
+            if (!ClientSteamIds.TryGetValue(clientId, out ulong steamId) || steamId == 0)
+            {
+                if (StartOfRound.Instance != null && StartOfRound.Instance.allPlayerScripts != null)
+                {
+                    foreach (var p in StartOfRound.Instance.allPlayerScripts)
+                    {
+                        if (p != null && p.actualClientId == clientId && p.playerSteamId != 0)
+                        {
+                            steamId = p.playerSteamId;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (steamId != 0)
             {
                 Ban(steamId, reason);
             }
