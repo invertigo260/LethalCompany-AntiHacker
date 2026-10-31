@@ -141,24 +141,46 @@ namespace AntiHacker.Patches
         private const float MaxGrabDistance = 15f;
 
         /// <summary>
-        /// Clipboard, Sticky Note, and Dead Player Bodies (RagdollGrabbableObject) have a nominal scrapValue (5)
-        /// in vanilla, but players should still be allowed to pick them up inside the ship.
+        /// Certain items have a scrapValue > 0 in vanilla but should remain grabbable inside the ship:
+        /// Clipboard, Sticky Note, Dead Player Bodies, Keys, Whoopie Cushions, Easter Eggs, and Homemade Flashbangs.
         /// </summary>
         private static bool IsExemptFromShipScrapLock(GrabbableObject grabbable)
         {
             if (grabbable == null) return true;
-            if (grabbable is RagdollGrabbableObject || grabbable is ClipboardItem) return true;
-            string name = grabbable.name;
-            if (!string.IsNullOrEmpty(name))
+            if (grabbable is RagdollGrabbableObject ||
+                grabbable is ClipboardItem ||
+                grabbable is KeyItem ||
+                grabbable is WhoopieCushionItem ||
+                grabbable is StunGrenadeItem)
             {
-                if (name.IndexOf("Clipboard", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    name.IndexOf("StickyNote", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    name.IndexOf("Ragdoll", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    return true;
-                }
+                return true;
             }
+
+            string name = grabbable.name;
+            if (!string.IsNullOrEmpty(name) && MatchesExemptItemName(name))
+            {
+                return true;
+            }
+
+            string itemName = grabbable.itemProperties != null ? grabbable.itemProperties.itemName : null;
+            if (!string.IsNullOrEmpty(itemName) && MatchesExemptItemName(itemName))
+            {
+                return true;
+            }
+
             return false;
+        }
+
+        private static bool MatchesExemptItemName(string text)
+        {
+            return text.IndexOf("Clipboard", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   text.IndexOf("StickyNote", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   text.IndexOf("Ragdoll", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   text.IndexOf("Key", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   text.IndexOf("Whoopie", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   text.IndexOf("Easter", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   text.IndexOf("Egg", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   text.IndexOf("Flashbang", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         [HarmonyPatch("GrabObjectServerRpc")]

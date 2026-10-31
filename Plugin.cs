@@ -19,7 +19,7 @@ namespace AntiHacker
     {
         public const string PLUGIN_GUID = "com.invertigo.antihacker";
         public const string PLUGIN_NAME = "AntiHacker";
-        public const string PLUGIN_VERSION = "2.0.3";
+        public const string PLUGIN_VERSION = "2.0.4";
 
         public static Plugin Instance;
         public static BepInEx.Logging.ManualLogSource Log;

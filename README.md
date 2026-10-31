@@ -1,4 +1,4 @@
-# AntiHacker v2.0.3
+# AntiHacker v2.0.4
 
 A comprehensive host-side security and Quality-of-Life mod for **Lethal Company**. AntiHacker protects your lobbies from malicious players, prevents ban evasion, blocks game-breaking server RPC exploits (including remote scrap deletion, item vacuuming, and ship tampering), provides instant ship recovery tools, and adds convenient ship management commands.
 
@@ -26,6 +26,7 @@ Cheaters often send unauthorized Server RPCs to crash or ruin the lobby. AntiHac
   - Automatically enforces `isInShipRoom = true` and `isInElevator = true` if an item is dropped inside the ship bounds, preventing spoofed outside drops.
 - **Ship Scrap Lock (`LockShipScrapUntilCompany`)**:
   - Remote clients cannot pick up items with scrap value (`scrapValue > 0`) once they are inside the ship cabin, **unless** the ship is at the Company Building (`71 Gordion`) to sell. Host can always move scrap at any time.
+  - Utility/fun exceptions that remain grabbable inside the ship: **Keys**, **Whoopie Cushions**, **Easter Eggs**, **Homemade Flashbangs**, **Clipboard/Sticky Note**, and **Dead Player Bodies**.
 - **Ship-Item Grab Rate Limiter (`MaxShipGrabsPerSecond`)**:
   - Limits how fast remote clients can grab items marked inside the ship (default: 3 grabs/sec). Excessive spam (> 8/sec) results in an instant autoban and kick.
   - Rate limiting is automatically disabled while on the Company Building moon so your crew can quickly unload scrap at the counter.
