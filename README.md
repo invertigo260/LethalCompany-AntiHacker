@@ -106,3 +106,11 @@ Configuration is located at `BepInEx/config/com.invertigo.antihacker.cfg`:
 
 - **Mod Manager (Recommended)**: Install via **r2modman** or the **Thunderstore Mod Manager**.
 - **Manual Installation**: Place `AntiHacker.dll` inside your `BepInEx/plugins/` directory.
+
+---
+
+## 📜 Credits & License
+
+- AntiHacker is developed by **invertigo**.
+- **Third-Party Credits**: Low-level Netcode packet validation, bounds checking, and voice codec guards (`BatchGuard`, `LengthGuard`, `VoiceGuard`) are adapted from [**LobbyGuard**](https://github.com/Rethunk-Tech/mortar-lc-lobbyguard) by Rethunk-Tech / Mort, licensed under the MIT License. See [LICENSE](LICENSE) for full notice details.
+
