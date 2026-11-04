@@ -1,10 +1,9 @@
 {
     "name": "AntiHacker",
-    "version_number": "2.0.4",
+    "version_number": "2.0.5",
     "website_url": "https://github.com/invertigo260/AntiHacker",
-    "description": "Comprehensive host security: blocks scrap deletion exploits, remote grab abuse, lightswitch/terminal trolling, ban evasion, economy exploits, and includes ship recovery tools.",
+    "description": "Comprehensive host security: blocks native Netcode/voice crash exploits (LobbyGuard integration), scrap deletion, remote grab abuse, lightswitch/terminal trolling, ban evasion, and economy exploits.",
     "dependencies": [
         "BepInEx-BepInExPack-5.4.2100"
     ]
 }
-

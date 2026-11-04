@@ -19,7 +19,7 @@ namespace AntiHacker
     {
         public const string PLUGIN_GUID = "com.invertigo.antihacker";
         public const string PLUGIN_NAME = "AntiHacker";
-        public const string PLUGIN_VERSION = "2.0.4";
+        public const string PLUGIN_VERSION = "2.0.5";
 
         public static Plugin Instance;
         public static BepInEx.Logging.ManualLogSource Log;
@@ -75,6 +75,9 @@ namespace AntiHacker
             harmony = new Harmony(PLUGIN_GUID);
             harmony.PatchAll();
             PatchRpcSenderTracking();
+            Patches.BatchGuard.Hook();
+            Patches.LengthGuard.HookAll();
+            Patches.VoiceGuard.Hook();
 
             SteamMatchmaking.OnLobbyMemberJoined += OnLobbyMemberJoined;
             SteamMatchmaking.OnLobbyMemberLeave += OnLobbyMemberLeave;

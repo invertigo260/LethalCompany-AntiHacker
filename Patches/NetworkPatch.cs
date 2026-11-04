@@ -31,36 +31,60 @@ namespace AntiHacker.Patches
 
                 Security.PurgePending();
 
-                // The payload is "version,steamId,..." and is fully attacker controlled.
+                // 1. The payload is "version,steamId,..." and is fully attacker-controlled.
                 ulong payloadId = 0;
-                string[] parts = System.Text.Encoding.ASCII.GetString(request.Payload).Split(',');
-                if (parts.Length >= 2) ulong.TryParse(parts[1], out payloadId);
+                if (request.Payload != null && request.Payload.Length > 0)
+                {
+                    string[] parts = System.Text.Encoding.ASCII.GetString(request.Payload).Split(',');
+                    if (parts.Length >= 2) ulong.TryParse(parts[1], out payloadId);
+                }
 
-                // The real ID comes from the Steam lobby join event, which cannot be spoofed.
-                ulong realId = 0;
+                // 2. Get the cryptographically verified Steam ID directly from the Facepunch/SteamNetworkingSockets connection.
+                ulong socketId = Security.SteamIdOf(NetworkManager.Singleton, clientId);
+
+                // 3. Fallback to the Steam lobby join event if needed.
+                ulong realId = socketId;
                 bool payloadIsPending = payloadId != 0 && Security.PendingJoins.ContainsKey(payloadId);
-                if (payloadIsPending)
+                if (realId == 0)
                 {
-                    realId = payloadId;
-                }
-                else if (Security.PendingJoins.Count == 1)
-                {
-                    foreach (var kv in Security.PendingJoins) realId = kv.Key;
+                    if (payloadIsPending)
+                    {
+                        realId = payloadId;
+                    }
+                    else if (Security.PendingJoins.Count == 1)
+                    {
+                        foreach (var kv in Security.PendingJoins) realId = kv.Key;
+                    }
                 }
 
-                Plugin.Log.LogInfo($"AntiHacker: approval clientId={clientId} payloadId={payloadId} realId={realId} pending={Security.PendingJoins.Count}");
+                Plugin.Log.LogInfo($"AntiHacker: approval clientId={clientId} payloadId={payloadId} socketId={socketId} realId={realId} pending={Security.PendingJoins.Count}");
 
-                // Banned (either the claimed or the real identity).
-                if (Security.IsBanned(payloadId) || Security.IsBanned(realId))
+                bool kickedEarlier = StartOfRound.Instance != null &&
+                    ((realId != 0 && StartOfRound.Instance.KickedClientIds.Contains(realId)) ||
+                     (payloadId != 0 && StartOfRound.Instance.KickedClientIds.Contains(payloadId)));
+
+                // Banned (either the claimed or the real identity, or in StartOfRound.KickedClientIds).
+                if (Security.IsBanned(payloadId) || Security.IsBanned(realId) || kickedEarlier)
                 {
-                    Plugin.Log.LogWarning($"Blocked banned player. payload={payloadId} real={realId}");
+                    Plugin.Log.LogWarning($"Blocked banned/kicked player. payload={payloadId} real={realId}");
                     Security.PendingJoins.Remove(realId);
                     Reject(response, "You have been permanently kicked from this lobby.");
                     return false;
                 }
 
-                // The claimed ID is not who actually joined the lobby: spoofing.
-                if (!payloadIsPending && Security.PendingJoins.Count > 0)
+                // Direct socket proof: if SteamNetworkingSockets proved who is on this connection (socketId != 0)
+                // and their payload claims a different Steam ID, they are 100% spoofing.
+                if (socketId != 0 && payloadId != 0 && payloadId != socketId)
+                {
+                    Plugin.Log.LogWarning($"Hacker detected! Socket Steam ID {socketId} claimed spoofed payload Steam ID {payloadId}.");
+                    Security.Ban(socketId, $"Spoofed Steam ID {payloadId}");
+                    Security.PendingJoins.Remove(socketId);
+                    Reject(response, "Spoofed Steam ID detected. Connection rejected.");
+                    return false;
+                }
+
+                // Fallback lobby check: the claimed ID is not who actually joined the lobby.
+                if (socketId == 0 && !payloadIsPending && Security.PendingJoins.Count > 0)
                 {
                     Plugin.Log.LogWarning($"Hacker detected! Claimed Steam ID {payloadId} did not join the lobby (real: {realId}).");
                     if (realId != 0) Security.Ban(realId, $"Spoofed Steam ID {payloadId}");
@@ -84,7 +108,7 @@ namespace AntiHacker.Patches
                     }
                 }
 
-                // Approved: remember who this clientId really is (fall back to payloadId if Steam lobby callback hasn't fired yet).
+                // Approved: remember who this clientId really is.
                 ulong idToRecord = realId != 0 ? realId : payloadId;
                 if (idToRecord != 0)
                 {
@@ -115,10 +139,8 @@ namespace AntiHacker.Patches
                 if (GameNetworkManager.Instance.disableSteam) return;
 
                 var player = __instance.allPlayerScripts[playerObjToKick];
-                ulong steamId = player.playerSteamId;
-
-                // Prefer the real (lobby-verified) ID over whatever the client claimed.
-                if (Security.ClientSteamIds.TryGetValue(player.actualClientId, out ulong realId)) steamId = realId;
+                ulong steamId = Security.ResolveSteamId(player.actualClientId);
+                if (steamId == 0) steamId = player.playerSteamId;
 
                 if (steamId > 0) Security.Ban(steamId, "Kicked by host");
             }
